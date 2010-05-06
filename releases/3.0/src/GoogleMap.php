@@ -1028,6 +1028,63 @@ class GoogleMapAPI {
         // return index of marker
         return count($this->_markers) - 1;
     }
+    /**
+     * adds polyline by passed array
+     * if color, weight and opacity are not defined, use the google maps defaults
+     * @param array $polyline_array array of lat/long coords
+     * @param string $id An array id to use to append coordinates to a line
+     * @param string $color the color of the line (format: #000000)
+     * @param string $weight the weight of the line in pixels
+     * @param string $opacity the line opacity (percentage)
+     * @return bool|int Array id of newly added point or false
+     */
+    function addPolylineByCoordsArray($polyline_array,$id=false,$color='',$weight=0,$opacity=0){
+    	if(!is_array($polyline_array) || sizeof($polyline_array) < 2)
+    	   return false;
+    	$_prev_coords = "";
+    	$_next_coords = "";
+    	
+    	foreach($polyline_array as $_coords){
+    		$_prev_coords = $_next_coords;
+    		$_next_coords = $_coords;
+    		
+    		if($_prev_coords !== ""){
+    		  $_lt1=$_prev_coords["lat"];
+    		  $_ln1=$_prev_coords["long"];
+    		  $_lt2=$_next_coords["lat"];
+              $_ln2=$_next_coords["long"];
+    		  $id = $this->addPolyLineByCoords($_ln1, $_lt1, $_ln2, $_lt2, $id, $color, $weight, $opacity);
+    		}
+    	}
+        return $id;
+    }
+    
+    /**
+     * adds polyline by passed array
+     * if color, weight and opacity are not defined, use the google maps defaults
+     * @param array $polyline_array array of addresses
+     * @param string $id An array id to use to append coordinates to a line
+     * @param string $color the color of the line (format: #000000)
+     * @param string $weight the weight of the line in pixels
+     * @param string $opacity the line opacity (percentage)
+     * @return bool|int Array id of newly added point or false
+     */
+    function addPolylineByAddressArray($polyline_array,$id=false,$color='',$weight=0,$opacity=0){
+        if(!is_array($polyline_array) || sizeof($polyline_array) < 2)
+           return false;
+        $_prev_address = "";
+        $_next_address = "";
+        
+        foreach($polyline_array as $_address){
+            $_prev_address = $_next_address;
+            $_next_address = $_address;
+            
+            if($_prev_address !== ""){
+              $id = $this->addPolyLineByAddress($_prev_address, $_next_address, $id, $color, $weight, $opacity);
+            }
+        }
+        return $id;
+    }
 
     /**
      * adds a map polyline by address
@@ -1444,7 +1501,7 @@ class GoogleMapAPI {
         //$_output .= "map.addMapType(G_SATELLITE_3D_MAP);\n";
         
         // zoom so that all markers are in the viewport
-        if($this->zoom_encompass && (count($this->_markers) > 1 || count($this->_polylines) > 1)) {
+        if($this->zoom_encompass && (count($this->_markers) > 1 || count($this->_polylines) >= 1)) {
             // increase bounds by fudge factor to keep
             // markers away from the edges
             $_len_lon = $this->_max_lon - $this->_min_lon;
