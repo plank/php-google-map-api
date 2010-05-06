@@ -127,7 +127,8 @@ class GoogleMapAPI {
     /**
      * use onLoad() to load the map javascript.
      * if enabled, be sure to include on your webpage:
-     * <html onload="onLoad()">
+     * <?=$mapobj->printOnLoad?> or manually create an onload function 
+     * that calls the map's onload function using $this->printOnLoadFunction
      *
      * @var bool
      * @default true
@@ -488,6 +489,11 @@ class GoogleMapAPI {
     var $_directions_header = '';
     
     /**
+     * Class variable to store whether or not to display JS functions in the header
+     */
+    var $_display_js_functions = true;
+    
+    /**
      * Class variable that will store flag to minify js - this can be overwritten after object is instantiated.  Include JSMin.php if 
 	 * you want to use JS Minification.
      *
@@ -715,7 +721,7 @@ class GoogleMapAPI {
             $this->_directions_header = "
                 var directionDisplay = new google.maps.DirectionsRenderer();
                 var directionsService = new google.maps.DirectionsService();
-                directionDisplay.setMap(map);
+                directionDisplay.setMap(map".$this->map_id.");
                 directionDisplay.setPanel(document.getElementById('$dom_id'));
                 var request = {
                     origin: '$start_address',
@@ -1360,13 +1366,27 @@ class GoogleMapAPI {
     function printOnLoad() {
         echo $this->getOnLoad();
     }
+    
+    /**
+     * print onLoad function name
+     */
+    function printOnLoadFunction(){
+        echo $this->getOnLoadFunction();
+    }
 
     /**
      * return js to set onload function
      */
     function getOnLoad() {
-        return '<script language="javascript" type="text/javascript" charset="utf-8">window.onload=onLoad;</script>';                       
+        return '<script language="javascript" type="text/javascript" charset="utf-8">window.onload=onLoad'.$this->map_id.';</script>';                       
     }
+    
+    /**
+     * return js to set onload function
+     */
+    function getOnLoadFunction() {
+        return 'onLoad'.$this->map_id;                       
+    }   
 
     /**
      * print map javascript (put just before </body>, or in <header> if using onLoad())
@@ -1382,6 +1402,7 @@ class GoogleMapAPI {
      */
     function getMapJS() {
 		$_script = "";
+		$_key = $this->map_id;
 		$_output = '<script type="text/javascript" charset="utf-8">' . "\n";
         $_output .= '//<![CDATA[' . "\n";
         $_output .= "/*************************************************\n";
@@ -1394,32 +1415,36 @@ class GoogleMapAPI {
         $_output .= " * Originial Link http://www.phpinsider.com/php/code/GoogleMapAPI/\n";
         $_output .= " *************************************************/\n";
 		//start setting script var
+        if($this->onload) {
+           $_script .= 'function onLoad'.$this->map_id.'() {' . "\n";   
+        } 
+        
 		$_script .= "
-            var points = [];
-			var markers = [];
-			var counter = 0;
+            var points$_key  = [];
+			var markers$_key  = [];
+			var counter$_key  = 0;
         ";
         if($this->sidebar) {        
             $_script .= "
-                var sidebar_html = '';
-                var marker_html = [];
+                var sidebar_html$_key  = '';
+                var marker_html$_key  = [];
             ";
         }
         if($this->directions) {        
             $_script .= "
-                var to_htmls = [];
-                var from_htmls = [];
+                var to_htmls$_key  = [];
+                var from_htmls$_key  = [];
             ";
         }
         
         //New Icons
         if(!empty($this->_marker_icons)){
-        	$_script .= "var icon = []; \n";
+        	$_script .= "var icon$_key  = []; \n";
         	foreach($this->_marker_icons as $icon_key=>$icon_info){
         		//no need to check icon key here since that's already done with setters
         		$_script .= "
-        		  icon['$icon_key'] = {};
-        		  icon['$icon_key'].image =  new google.maps.MarkerImage('".$icon_info["image"]."',
+        		  icon".$_key."['$icon_key'] = {};
+        		  icon".$_key."['$icon_key'].image =  new google.maps.MarkerImage('".$icon_info["image"]."',
 				      // The size
 				      new google.maps.Size(".$icon_info['iconWidth'].", ".$icon_info['iconHeight']."),
 				      // The origin(sprite)
@@ -1430,7 +1455,7 @@ class GoogleMapAPI {
         		";
         		if(isset($icon_info['shadow']) && $icon_info['shadow']!=""){
         		  $_script .= "
-                    icon['$icon_key'].shadow = new google.maps.MarkerImage('".$icon_info["shadow"]."',
+                    icon".$_key."['$icon_key'].shadow = new google.maps.MarkerImage('".$icon_info["shadow"]."',
                       // The size
                       new google.maps.Size(".$icon_info['shadowWidth'].", ".$icon_info['shadowHeight']."),
                       // The origin(sprite)
@@ -1443,11 +1468,7 @@ class GoogleMapAPI {
         	}
         }
                            
-        $_script .= 'var map = null;' . "\n";
-                     
-        if($this->onload) {
-           $_script .= 'function onLoad() {' . "\n";   
-        }
+        $_script .= "var map$_key = null;\n";
                 
         if(!empty($this->browser_alert)) {
         	//TODO:Update with new browser catch - GBrowserIsCompatible is deprecated
@@ -1455,7 +1476,7 @@ class GoogleMapAPI {
         }
         
         $_script .= "
-            var mapOptions = {
+            var mapOptions$_key = {
                 zoom: ".$this->zoom.",
                 mapTypeId: google.maps.MapTypeId.".$this->map_type."
             }
@@ -1463,7 +1484,7 @@ class GoogleMapAPI {
         if(isset($this->center_lat) && isset($this->center_lon)) {
             // Special care for decimal point in lon and lat, would get lost if "wrong" locale is set; applies to (s)printf only
             $_script .= "
-                mapOptions.center = new google.maps.LatLng(
+                mapOptions".$_key.".center = new google.maps.LatLng(
                     ".number_format($this->center_lat, 6, ".", "").",
                     ".number_format($this->center_lon, 6, ".", "")."
                 );
@@ -1488,10 +1509,10 @@ class GoogleMapAPI {
 		}
         */
 
-        $_script .= sprintf('var mapObj = document.getElementById("%s");',$this->map_id) . "\n";
-        $_script .= 'if (mapObj != "undefined" && mapObj != null) {' . "\n";
+        $_script .= sprintf('var mapObj%s = document.getElementById("%s");', $_key, $this->map_id) . "\n";
+        $_script .= "if (mapObj$_key != 'undefined' && mapObj$_key != null) {\n";
         $_script .= "
-            map = new google.maps.Map(mapObj,mapOptions);
+            map$_key = new google.maps.Map(mapObj$_key,mapOptions$_key);
         ";
         
         if($this->_directions_header!= '')
@@ -1511,8 +1532,8 @@ class GoogleMapAPI {
             $this->_min_lat -= $_len_lat * $this->bounds_fudge;
             $this->_max_lat += $_len_lat * $this->bounds_fudge;
 
-            $_script .= "var bds = new google.maps.LatLngBounds(new google.maps.LatLng($this->_min_lat, $this->_min_lon), new google.maps.LatLng($this->_max_lat, $this->_max_lon));\n";
-            $_script .= 'map.fitBounds(bds);' . "\n";
+            $_script .= "var bds$_key = new google.maps.LatLngBounds(new google.maps.LatLng($this->_min_lat, $this->_min_lon), new google.maps.LatLng($this->_max_lat, $this->_max_lon));\n";
+            $_script .= 'map'.$_key.'.fitBounds(bds'.$_key.');' . "\n";
         }
         
         /*
@@ -1575,13 +1596,13 @@ class GoogleMapAPI {
            $_script .= '}' . "\n";
         }
         
-        $_script .= $this->getCreateMarkerJS();
-
-        // Utility functions used to distinguish between tabbed and non-tabbed info windows
-        $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
-        $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
-        $_script .= 'function isFunction(a) {return typeof a == \'function\';}' . "\n";
-		
+        if($this->_display_js_functions===true){
+	        $_script .= $this->getCreateMarkerJS();
+	        // Utility functions used to distinguish between tabbed and non-tabbed info windows
+	        $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
+	        $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
+	        $_script .= 'function isFunction(a) {return typeof a == \'function\';}' . "\n";
+        }
 		if($this->_minify_js && class_exists("JSMin")){
 			$_script = JSMin::minify($_script);
 		}
@@ -1599,11 +1620,12 @@ class GoogleMapAPI {
         foreach($this->_markers as $_marker) {
             $iw_html = sprintf('"%s"',str_replace('"','\"','<div id="gmapmarker">' . str_replace(array("\n", "\r"), "", $_marker['html']) . '</div>'));
             $_output .= sprintf('var point = new google.maps.LatLng(%s,%s);',$_marker['lat'],$_marker['lon']) . "\n";         
-            $_output .= sprintf('createMarker(map, point,"%s",%s, %s, %s, "%s" );',
+            $_output .= sprintf('createMarker(map%s, point,"%s",%s, %s, %s, "%s" );',
+                $this->map_id,
 				str_replace('"','\"',$_marker['title']),
 				str_replace('/','\/',$iw_html),
-				(isset($_marker["icon_key"]))?"icon['".$_marker["icon_key"]."'].image":"''",
-				(isset($_marker["icon_key"])&&isset($_marker["shadow_icon"]))?"icon['".$_marker["icon_key"]."'].shadow":"''",
+				(isset($_marker["icon_key"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].image":"''",
+				(isset($_marker["icon_key"])&&isset($_marker["shadow_icon"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].shadow":"''",
 				($this->sidebar)?$this->sidebar_id:""
             ) . "\n";
         }
@@ -1632,7 +1654,7 @@ class GoogleMapAPI {
 				  ".(($_polyline['opacity']!=0)?", strokeOpacity: ".$_polyline['opacity']."":"")."
 				  ".(($_polyline['weight']!=0)?", strokeWeight: ".$_polyline['weight']."":"")."
 			  });			
-			  Polyline$polyline_key.setMap(map);
+			  Polyline$polyline_key.setMap(map".$this->map_id.");
         	";
 		}
         return $_output;
