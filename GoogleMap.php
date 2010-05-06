@@ -703,7 +703,7 @@ class GoogleMapAPI {
             if($this->walking_directions==TRUE)
                 $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.WALKING";
             else if($this->biking_directions==TRUE)
-                $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.BIKING";
+                $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.BICYCLING";
             else
                 $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.DRIVING";
            
