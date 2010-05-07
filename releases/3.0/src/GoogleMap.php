@@ -1034,6 +1034,22 @@ class GoogleMapAPI {
         // return index of marker
         return count($this->_markers) - 1;
     }
+    
+    /**
+     * adds a DOM object ID to specified marker to open the marker's info window.
+     *   Does nothing if the info windows is disabled.
+     * @param string $marker_id ID of the marker to associate to
+     * @param string $dom_id ID of the DOM object to use to open marker info window
+     * @return bool true/false status
+     */
+    function addMarkerOpener($marker_id, $dom_id){
+    	if($this->info_window === false || !isset($this->_markers[$marker_id]))
+    	   return false;
+    	if(!isset($this->_markers[$marker_id]["openers"]))
+    	   $this->_markers[$marker_id]["openers"] = array();
+        $this->_markers[$marker_id]["openers"][] = $dom_id;    	   
+    }
+    
     /**
      * adds polyline by passed array
      * if color, weight and opacity are not defined, use the google maps defaults
@@ -1602,6 +1618,7 @@ class GoogleMapAPI {
 	        $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
 	        $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
 	        $_script .= 'function isFunction(a) {return typeof a == \'function\';}' . "\n";
+	        $_script .= 'function isEmpty(obj) { for(var i in obj) { return false; } return true; }'."\n";	        
         }
 		if($this->_minify_js && class_exists("JSMin")){
 			$_script = JSMin::minify($_script);
@@ -1618,15 +1635,16 @@ class GoogleMapAPI {
     function getAddMarkersJS() {
         $_output = '';
         foreach($this->_markers as $_marker) {
-            $iw_html = sprintf('"%s"',str_replace('"','\"','<div id="gmapmarker">' . str_replace(array("\n", "\r"), "", $_marker['html']) . '</div>'));
-            $_output .= sprintf('var point = new google.maps.LatLng(%s,%s);',$_marker['lat'],$_marker['lon']) . "\n";         
-            $_output .= sprintf('createMarker(map%s, point,"%s",%s, %s, %s, "%s" );',
+            $iw_html = '"'.str_replace('"','\"','<div id="gmapmarker">' . str_replace(array("\n", "\r"), "", $_marker['html']) . '</div>').'"';
+            $_output .= "var point = new google.maps.LatLng(".$_marker['lat'].",".$_marker['lon'].");\n";
+            $_output .= sprintf('createMarker(map%s, point,"%s",%s, %s, %s, "%s", %s );',
                 $this->map_id,
 				str_replace('"','\"',$_marker['title']),
 				str_replace('/','\/',$iw_html),
 				(isset($_marker["icon_key"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].image":"''",
 				(isset($_marker["icon_key"])&&isset($_marker["shadow_icon"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].shadow":"''",
-				($this->sidebar)?$this->sidebar_id:""
+				(($this->sidebar)?$this->sidebar_id:""),
+				((isset($_marker["openers"])&&count($_marker["openers"])>0)?json_encode($_marker["openers"]):"''")
             ) . "\n";
         }
         return $_output;
@@ -1665,7 +1683,7 @@ class GoogleMapAPI {
      */
     function getCreateMarkerJS() {
     	$_output = "
-    	   function createMarker(map, point, title, html, icon, icon_shadow, sidebar_id){
+    	   function createMarker(map, point, title, html, icon, icon_shadow, sidebar_id, openers){
 			    var marker_options = {
 			        position: point,
 			        map: map,
@@ -1685,6 +1703,12 @@ class GoogleMapAPI {
 			            newlink.onclick=function(){infowindow.open(map,new_marker); return false};
 			            newlink.innerHTML = title;
 			            sidebar.appendChild(newlink);
+			        }
+			        if(openers != ''&&!isEmpty(openers)){
+			           for(var i in openers){
+			             var opener = document.getElementById(openers[i]);
+			             opener.on".$this->window_trigger." = function(){infowindow.open(map,new_marker); return false};
+			           }
 			        }
                 }
 			    return new_marker;  
