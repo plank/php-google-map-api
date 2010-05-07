@@ -1882,7 +1882,34 @@ class GoogleMapAPI {
         return $_coords;       
     }
     
-    
+	/**
+     * get full geocode information for given address from Google
+	 * NOTE: This does not use the getCache function as there is 
+	 * a lot of data in a full geocode response to cache.
+     * 
+     * @param string $address
+     * @return bool|array false if can't be geocoded, array or geocdoes if successful
+     */
+    function geoGetCoordsFull($address,$depth=0) {
+        switch($this->lookup_service) {
+            case 'GOOGLE':
+                $_url = sprintf('http://%s/maps/api/geocode/json?sensor=%s&address=%s',$this->lookup_server['GOOGLE'], $this->mobile==true?"true":"false", rawurlencode($address));
+                $_result = false;
+                if($_result = $this->fetchURL($_url)) {
+                    return json_decode($_result);
+                }
+                break;
+            case 'YAHOO':
+            default:        
+                $_url = 'http://%s/MapsService/V1/geocode';
+                $_url .= sprintf('?appid=%s&location=%s',$this->lookup_server['YAHOO'],$this->app_id,rawurlencode($address));
+                $_result = false;
+                if($_result = $this->fetchURL($_url)) {
+                    return $_match;
+                }
+                break;
+        }         
+    }    
 
     /**
      * fetch a URL. Override this method to change the way URLs are fetched.
