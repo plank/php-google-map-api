@@ -36,33 +36,8 @@
  * @version 3.0beta
 */
 /*
- * REVISIONLOG:
- *  - Updated to use Google Maps API v3
- *    --Removed references and everything dealing with Google Maps API key 
- *      since keys are no longer necessary in V3 of the API!
- *    --Removed tabs support for now (not part of V3 API)
- *      ---Potential to reincorporate with jQuery UI tabs?
- *    --Updated map type names
- *    --Updated icon/marker creation to use new methods
- *    --Update GeoCaching to use new Google Maps V3 geocoder.
- *      ---Updated to use JSON encoding vs. csv
- *      ---New API no longer requires API key - http://code.google.com/apis/maps/documentation/geocoding/
- *  - Modified directions support (changed to directions "object" to allow
- *      instantiation of a map with directions parameters passed)
- *  - Modified custom icon support, replaced "addMarkerIcon" with addIcon and updateMarkerIconKey
- *    --Icons will now be explicitly defined when creating a marker using the icon (and shadow) file locations
- *    --You can also set a default icon file to use by setting $this->default_icon (and default_icon_shadow)
- *    --TODO:Add more support for creating custom markers (will wait and see what people think)
- *      ---In order to pass all values for an icon instead of just the filename,
- *         you would have too call addIcon manually and pass the x parameters.
- *         Then when you create the markers, you can simply pass the filename
- *         and the icon will already have been initialized with the custom vs.
- *         calculated values. 
- *  - Added walking and biking directions support, also added ignore tolls support
- *  - Added google local search bar support (**Not currently in beta**)
- *  - Added Google Maps Ad Manager support (**Not currently in beta**)
- *  - Added Traffic Overlay Support (**Not currently in beta**)
- *  
+ * To view the full CHANGELOG, visit 
+ * http://code.google.com/p/php-google-map-api/wiki/ChangeLog3
 /*
 For database caching, you will want to use this schema:
 
@@ -338,7 +313,14 @@ class GoogleMapAPI {
      *
      * @var bool
      */
-    var $traffic_overlay = false;    
+    var $traffic_overlay = false;
+	
+	/**
+     * determines if biking overlay is displayed on map
+     *
+     * @var bool
+     */
+    var $biking_overlay = false;   
     
     /**
      * what server geocode lookups come from
@@ -858,6 +840,20 @@ class GoogleMapAPI {
      */
     function disableTrafficOverlay() {
         $this->traffic_overlay= false;
+    }
+	
+	/**
+     * enable biking overlay 
+     */
+    function enableBikingOverlay() {
+        $this->biking_overlay= true;
+    }
+    
+    /**
+     * disable biking overlay (default)
+     */
+    function disableBikingOverlay() {
+        $this->biking_overlay= false;
     }
     
     /**
@@ -1577,11 +1573,7 @@ class GoogleMapAPI {
         if($this->overview_control) {
             $_output .= 'map.addControl(new GOverviewMapControl());' . "\n";
         }
-         * TODO: Update with traffic overlay stuff once integrated into V3
-        if($this->traffic_overlay){
-            $_output .= 'var trafficInfo = new GTrafficOverlay();'."\n";
-            $_output .= 'map.addOverlay(trafficInfo);'."\n";
-        }
+        
          * TODO: Update with ads_manager stuff once integrated into V3
         if($this->ads_manager){
             $_output .= 'var adsManager = new GAdsManager(map, "'.$this->ads_pub_id.'",{channel:"'.$this->ads_channel.'",maxAdsOnMap:"'.$this->ads_max.'"});
@@ -1595,6 +1587,21 @@ class GoogleMapAPI {
             ";
         }
         */
+		
+        if($this->traffic_overlay){
+			$_script .= "
+				var trafficLayer = new google.maps.TrafficLayer();
+				trafficLayer.setMap(map$_key);
+			";            
+        }
+		
+		if($this->biking_overlay){
+			$_script .= "
+				var bikingLayer = new google.maps.BicyclingLayer();
+				bikingLayer.setMap(map$_key);
+			";            
+        }
+		
         $_script .= $this->getAddMarkersJS();
         $_script .= $this->getPolylineJS();        
 
