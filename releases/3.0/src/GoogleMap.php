@@ -455,6 +455,14 @@ class GoogleMapAPI {
      * @var string
      */
     var $default_icon_shadow = "";
+	
+	/**
+     * list of added overlays
+     *
+     * @var array
+     */
+    var $_overlays = array();
+        
 
     /**
      * database cache table name
@@ -1172,7 +1180,28 @@ class GoogleMapAPI {
         $this->adjustCenterCoords($lon2,$lat2);
         // return index of polyline
         return $id;
-    }        
+    }
+	
+	/**
+	 * function to add an overlay to the map.
+	 */
+	 function addOverlay($bds_lat1, $bds_lon1, $bds_lat2, $bds_lon2, $img_src, $opacity = 100){
+		 $_overlay = array(
+			"bounds" => array(
+				"ne"=>array(
+					"lat"=>$bds_lat1,
+					"long"=>$bds_lon1
+				),
+				"sw"=>array(
+					"lat"=>$bds_lat2,
+					"long"=>$bds_lon2
+				)
+			),
+			"img" => $img_src,
+			"opacity" => $opacity/10
+		 );
+		 $this->_overlays[] = $_overlay;
+	 }
         
     /**
      * adjust map center coordinates by the given lat/lon point
@@ -1443,7 +1472,12 @@ class GoogleMapAPI {
                 var from_htmls$_key  = [];
             ";
         }
-        
+		//Overlays
+		if(!empty($this->_overlays)){
+			$_script .= "
+				var overlays$_key = [];
+			";
+		}
         //New Icons
         if(!empty($this->_marker_icons)){
         	$_script .= "var icon$_key  = []; \n";
@@ -1603,7 +1637,8 @@ class GoogleMapAPI {
         }
 		
         $_script .= $this->getAddMarkersJS();
-        $_script .= $this->getPolylineJS();        
+        $_script .= $this->getPolylineJS();
+		$_script .= $this->getAddOverlayJS();
 
          //end JS if mapObj != "undefined" block
         $_script .= '}' . "\n";        
@@ -1619,22 +1654,43 @@ class GoogleMapAPI {
            $_script .= '}' . "\n";
         }
         
-        if($this->_display_js_functions===true){
-	        $_script .= $this->getCreateMarkerJS();
-	        // Utility functions used to distinguish between tabbed and non-tabbed info windows
-	        $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
-	        $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
-	        $_script .= 'function isFunction(a) {return typeof a == \'function\';}' . "\n";
-	        $_script .= 'function isEmpty(obj) { for(var i in obj) { return false; } return true; }'."\n";	        
-        }
+		$_script .= $this->getMapFunctions();
+        
 		if($this->_minify_js && class_exists("JSMin")){
 			$_script = JSMin::minify($_script);
 		}
+		
+		//Append script to output
 		$_output .= $_script;
 		$_output .= '//]]>' . "\n";
         $_output .= '</script>' . "\n";
         return $_output;
     }
+	
+	/**
+	 * function to render utility functions for use on the page
+	 */
+	 function getMapFunctions(){
+		$_script = "";
+		if($this->_display_js_functions===true){
+	    	$_script = $this->getUtilityFunctions();           
+        }
+		return $_script;
+	 }
+	 
+	 function getUtilityFunctions(){
+		 $_script = "";
+		 if($this->_markers!=="")
+		 	$_script .= $this->getCreateMarkerJS();
+		 if($this->_overlays!=="")
+		 	$_script .= $this->getCreateOverlayJS();
+		 // Utility functions used to distinguish between tabbed and non-tabbed info windows
+		 $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
+		 $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
+		 $_script .= 'function isFunction(a) {return typeof a == \'function\';}' . "\n";
+		 $_script .= 'function isEmpty(obj) { for(var i in obj) { return false; } return true; }'."\n";	 
+		 return $_script;
+	 }
 
     /**
      * overridable function for generating js to add markers
@@ -1659,7 +1715,6 @@ class GoogleMapAPI {
 
     /**
      * overridable function to generate polyline js
-     * TODO: Update with v3 polyline support
      */
     function getPolylineJS() {
         $_output = '';
@@ -1684,6 +1739,21 @@ class GoogleMapAPI {
 		}
         return $_output;
     }
+	
+	/**
+	 * function to get overlay creation JS.
+	 */
+	 function getAddOverlayJS(){
+		 $_output = "";
+		 foreach($this->_overlays as $_key=>$_overlay){
+			 $_output .= "
+			 	 var bounds = new google.maps.LatLngBounds(new google.maps.LatLng(".$_overlay["bounds"]["ne"]["lat"].", ".$_overlay["bounds"]["ne"]["long"]."), new google.maps.LatLng(".$_overlay["bounds"]["sw"]["lat"].", ".$_overlay["bounds"]["sw"]["long"]."));
+				 var image = '".$_overlay["img"]."';
+			     overlays".$this->map_id."[$_key] = new CustomOverlay(bounds, image, map".$this->map_id.", ".$_overlay["opacity"].");
+			 ";
+		 }
+		 return $_output;
+	 }
 
     /**
      * overridable function to generate the js for the js function for creating a marker.
@@ -1723,6 +1793,54 @@ class GoogleMapAPI {
     	";
     	return $_output;
     }
+	
+	/**
+	 * Get create overlay js
+	 */
+	 function getCreateOverlayJS(){
+		 $_output = "
+		 	CustomOverlay.prototype = new google.maps.OverlayView();	
+			function CustomOverlay(bounds, image, map, opacity){
+				this.bounds_ = bounds;
+				this.image_ = image;
+				this.map_ = map;
+				this.div_ = null;
+				this.opacity = (opacity!='')?opacity:10;
+				this.setMap(map);
+			}
+			CustomOverlay.prototype.onAdd = function() {
+				var div = document.createElement('DIV');
+				div.style.borderStyle = 'none';
+				div.style.borderWidth = '0px';
+				div.style.position = 'absolute';
+				var img = document.createElement('img');
+				img.src = this.image_;
+				img.style.width = '100%';
+				img.style.height = '100%';
+				img.style.opacity = this.opacity/10;
+				img.style.filter = 'alpha(opacity='+this.opacity*10+')';	
+				div.appendChild(img);
+				this.div_ = div;	
+				var panes = this.getPanes();
+				panes.overlayImage.appendChild(div);
+			}
+			CustomOverlay.prototype.draw = function() {
+				var overlayProjection = this.getProjection();
+				var sw = overlayProjection.fromLatLngToDivPixel(this.bounds_.getSouthWest());
+				var ne = overlayProjection.fromLatLngToDivPixel(this.bounds_.getNorthEast());
+				var div = this.div_;
+				div.style.left = sw.x + 'px';
+				div.style.top = ne.y + 'px';
+				div.style.width = (ne.x - sw.x) + 'px';
+				div.style.height = (sw.y - ne.y) + 'px';
+			}
+			CustomOverlay.prototype.onRemove = function() {
+				this.div_.parentNode.removeChild(this.div_);
+				this.div_ = null;
+			}
+		 ";		 
+		 return $_output;
+	 }
 
     /**
      * print map (put at location map will appear)
