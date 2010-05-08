@@ -462,6 +462,11 @@ class GoogleMapAPI {
      * @var array
      */
     var $_overlays = array();
+    
+    /**
+     * list of added kml overlays
+     */
+    var $_kml_overlays = array();
         
 
     /**
@@ -1200,7 +1205,20 @@ class GoogleMapAPI {
 			"img" => $img_src,
 			"opacity" => $opacity/10
 		 );
+		 $this->adjustCenterCoords($bds_lon1,$bds_lat1);
+         $this->adjustCenterCoords($bds_lon2,$bds_lat2);
 		 $this->_overlays[] = $_overlay;
+		 return count($this->_overlays)-1;
+	 }
+	 
+	 /**
+	  * function to add a KML overlay to the map.
+	  *  *Note that this expects a filename and file parsing/processing is done
+	  *  on the client side
+	  */
+	 function addKMLOverlay($file){
+	   $this->_kml_overlays[] = $file;
+	   return count($this->_kml_overlays)-1;
 	 }
         
     /**
@@ -1478,6 +1496,12 @@ class GoogleMapAPI {
 				var overlays$_key = [];
 			";
 		}
+        //KML Overlays
+        if(!empty($this->_kml_overlays)){
+            $_script .= "
+                var kml_overlays$_key = [];
+            ";
+        }
         //New Icons
         if(!empty($this->_marker_icons)){
         	$_script .= "var icon$_key  = []; \n";
@@ -1568,7 +1592,7 @@ class GoogleMapAPI {
         //$_output .= "map.addMapType(G_SATELLITE_3D_MAP);\n";
         
         // zoom so that all markers are in the viewport
-        if($this->zoom_encompass && (count($this->_markers) > 1 || count($this->_polylines) >= 1)) {
+        if($this->zoom_encompass && (count($this->_markers) > 1 || count($this->_polylines) >= 1 || count($this->_overlays) >= 1)) {
             // increase bounds by fudge factor to keep
             // markers away from the edges
             $_len_lon = $this->_max_lon - $this->_min_lon;
@@ -1639,6 +1663,18 @@ class GoogleMapAPI {
         $_script .= $this->getAddMarkersJS();
         $_script .= $this->getPolylineJS();
 		$_script .= $this->getAddOverlayJS();
+		
+		if($this->_kml_overlays!==""){
+		  foreach($this->_kml_overlays as $_kml_key=>$_kml_file){
+		      $_script .= "
+		          kml_overlays$_key[$_kml_key]= new google.maps.KmlLayer('$_kml_file');
+		          kml_overlays$_key[$_kml_key].setMap(map$_key);
+		      ";
+		  }
+		  $_script .= "
+		      
+		  ";
+		}
 
          //end JS if mapObj != "undefined" block
         $_script .= '}' . "\n";        
@@ -1680,9 +1716,9 @@ class GoogleMapAPI {
 	 
 	 function getUtilityFunctions(){
 		 $_script = "";
-		 if($this->_markers!=="")
+		 if(!empty($this->_markers))
 		 	$_script .= $this->getCreateMarkerJS();
-		 if($this->_overlays!=="")
+		 if(!empty($this->_overlays))
 		 	$_script .= $this->getCreateOverlayJS();
 		 // Utility functions used to distinguish between tabbed and non-tabbed info windows
 		 $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
