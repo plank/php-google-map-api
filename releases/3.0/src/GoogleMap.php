@@ -1426,11 +1426,6 @@ class GoogleMapAPI {
         $_output .= " * Original Copyright 2005-2006 New Digital Group\n";
         $_output .= " * Originial Link http://www.phpinsider.com/php/code/GoogleMapAPI/\n";
         $_output .= " *************************************************/\n";
-		//start setting script var
-        if($this->onload) {
-           $_script .= 'function onLoad'.$this->map_id.'() {' . "\n";   
-        } 
-        
 		$_script .= "
             var points$_key  = [];
 			var markers$_key  = [];
@@ -1481,6 +1476,11 @@ class GoogleMapAPI {
         }
                            
         $_script .= "var map$_key = null;\n";
+		
+		//start setting script var
+        if($this->onload) {
+           $_script .= 'function onLoad'.$this->map_id.'() {' . "\n";   
+        } 
                 
         if(!empty($this->browser_alert)) {
         	//TODO:Update with new browser catch - GBrowserIsCompatible is deprecated
