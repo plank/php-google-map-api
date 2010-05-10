@@ -1377,8 +1377,8 @@ class GoogleMapAPI {
      * @param string $iconKey Icon key to define which icon to use.
      */
     function updateMarkerIconKey($markerKey, $iconKey){
-    	if(isset($_markers[$markerKey])){
-    		$_markers[$markerKey]['icon_key'] = $iconKey;
+    	if(isset($this->_markers[$markerKey])){
+    		$this->_markers[$markerKey]['icon_key'] = $iconKey;
     	}
     }    
 
