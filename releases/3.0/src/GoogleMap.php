@@ -1812,10 +1812,12 @@ class GoogleMapAPI {
 			        });                
 			        if(sidebar_id != ''){
 			            var sidebar = document.getElementById(sidebar_id);
-			            var newlink = document.createElement('a');
-			            newlink.onclick=function(){infowindow.open(map,new_marker); return false};
-			            newlink.innerHTML = title;
-			            sidebar.appendChild(newlink);
+						if(sidebar!=null && sidebar!=undefined){
+							var newlink = document.createElement('a');
+							newlink.onclick=function(){infowindow.open(map,new_marker); return false};
+							newlink.innerHTML = title;
+							sidebar.appendChild(newlink);
+						}
 			        }
 			        if(openers != ''&&!isEmpty(openers)){
 			           for(var i in openers){
