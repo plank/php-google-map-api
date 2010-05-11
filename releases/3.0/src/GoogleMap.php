@@ -307,6 +307,25 @@ class GoogleMapAPI {
      * @var string click/mouseover
      */
     var $window_trigger = 'click';    
+	
+	/**
+	 * determines whether or not to use the MarkerClusterer plugin
+	 */
+	 var $marker_clusterer = false;
+	 
+	 /**
+	 * set default marker clusterer *webserver* file location
+	 */
+	 var $marker_clusterer_location = "/MarkerClusterer-1.0/markerclusterer_compiled.js";
+	 
+	 /**
+	 * set default marker clusterer options
+	 */
+	 var $marker_clusterer_options = array(
+	 	"maxZoom"=>"null",
+		"gridSize"=>"null",
+		"styles"=>"null"
+	 );
     
     /**
      * determines if traffic overlay is displayed on map
@@ -899,6 +918,36 @@ class GoogleMapAPI {
     }
     
     /**
+     * enable map marker clustering
+     */
+    function enableClustering() {
+        $this->marker_clusterer = true;
+    }
+    
+    /**
+     * disable map marker clustering
+     */
+    function disableClustering() {
+        $this->marker_clusterer = false;
+    }
+    
+    /**
+     * set clustering options
+     */
+    function setClusterOptions($zoom="null", $gridsize="null", $styles="null"){
+    	$this->marker_clusterer_options["maxZoom"]=$zoom;
+    	$this->marker_clusterer_options["gridSize"]=$gridsize;
+    	$this->marker_clusterer_options["styles"]=$styles;
+    }   
+
+    /**
+     * Set clustering library file location
+     */
+    function setClusterLocation($file){
+    	$this->marker_clusterer_location=$file;
+    }
+    
+    /**
      * set the info window trigger action
      *
      * @param string $message click/mouseover
@@ -1407,6 +1456,12 @@ class GoogleMapAPI {
             $_mobile_meta
             <script type='text/javascript' src='http://maps.google.com/maps/api/js?sensor=".(($this->mobile==true)?"true":"false")."'></script>
         ";
+		
+		if($this->marker_clusterer){
+			$_headerJS .= "
+				<script type='text/javascript' src='".$this->marker_clusterer_location."' ></script>
+			";
+		}
         
         if($this->local_search)
         {
@@ -1478,6 +1533,11 @@ class GoogleMapAPI {
 			var markers$_key  = [];
 			var counter$_key  = 0;
         ";
+		if($this->marker_clusterer){
+			$_script .= "
+			  var markerClusterer$_key = null;
+			";
+		}
         if($this->sidebar) {        
             $_script .= "
                 var sidebar_html$_key  = '';
@@ -1736,8 +1796,9 @@ class GoogleMapAPI {
         foreach($this->_markers as $_marker) {
             $iw_html = '"'.str_replace('"','\"','<div id="gmapmarker">' . str_replace(array("\n", "\r"), "", $_marker['html']) . '</div>').'"';
             $_output .= "var point = new google.maps.LatLng(".$_marker['lat'].",".$_marker['lon'].");\n";
-            $_output .= sprintf('createMarker(map%s, point,"%s",%s, %s, %s, "%s", %s );',
+            $_output .= sprintf('markers%s.push(createMarker(map%s, point,"%s",%s, %s, %s, "%s", %s ));',
                 $this->map_id,
+				$this->map_id,
 				str_replace('"','\"',$_marker['title']),
 				str_replace('/','\/',$iw_html),
 				(isset($_marker["icon_key"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].image":"''",
@@ -1745,6 +1806,17 @@ class GoogleMapAPI {
 				(($this->sidebar)?$this->sidebar_id:""),
 				((isset($_marker["openers"])&&count($_marker["openers"])>0)?json_encode($_marker["openers"]):"''")
             ) . "\n";
+        }
+        
+        if($this->marker_clusterer){
+        	$_output .= "
+        	   markerClusterer".$this->map_id." = new MarkerClusterer(map".$this->map_id.", markers".$this->map_id.", {
+		          maxZoom: ".$this->marker_clusterer_options["maxZoom"].",
+		          gridSize: ".$this->marker_clusterer_options["gridSize"].",
+		          styles: ".$this->marker_clusterer_options["styles"]."
+		        });
+		        	
+        	";
         }
         return $_output;
     }
