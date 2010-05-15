@@ -450,6 +450,11 @@ class GoogleMapAPI {
      * @var array
      */
     var $_polylines = array();
+	
+	/**
+	 * list of polylines that should have an elevation profile rendered.
+	 */
+	var $_elevation_polylines = array();
         
     /**
      * icon info array
@@ -1261,6 +1266,21 @@ class GoogleMapAPI {
     }
 	
 	/**
+	 * function to add an elevation profile for a polyline to the page
+	 */
+	 function addPolylineElevation($polyline_id, $elevation_dom_id, $samples=256, $width="", $height="", $focus_color="#00ff00"){
+		if(isset($this->_polylines[$polyline_id])){
+			$this->_elevation_polylines[$polyline_id] = array(
+				"dom_id"=>$elevation_dom_id,
+				"samples"=>$samples,
+				"width"=>($width!=""?$width:str_replace("px","",$this->width)),
+				"height"=>($height!=""?$height:str_replace("px","",$this->height)/2),
+				"focus_color"=>$focus_color
+			);
+		}
+	 }
+	
+	/**
 	 * function to add an overlay to the map.
 	 */
 	 function addOverlay($bds_lat1, $bds_lon1, $bds_lat2, $bds_lon2, $img_src, $opacity = 100){
@@ -1394,7 +1414,7 @@ class GoogleMapAPI {
     function setMarkerIcon($iconImage,$iconShadowImage = '',$iconAnchorX = 'x',$iconAnchorY = 'x',$infoWindowAnchorX = 'x',$infoWindowAnchorY = 'x') {
         $this->default_icon = $iconImage;
         $this->default_icon_shadow = $iconShadowImage;
-        return $this->setMarkerIconKey($iconImage,$iconShadow,$iconAnchorX,$iconAnchorY,$infoWindowAnchorX,$infoWindowAnchorY);       
+        return $this->setMarkerIconKey($iconImage,$iconShadowImage,$iconAnchorX,$iconAnchorY,$infoWindowAnchorX,$infoWindowAnchorY);       
     }
     
     /**
@@ -1468,39 +1488,29 @@ class GoogleMapAPI {
      * 
      */
     function getHeaderJS() {
-        $_mobile_meta = "";
-        
+		$_headerJS = "";
         if( $this->mobile == true){
-        	$_mobile_meta = "
+        	$_headerJS .= "
         	   <meta name='viewport' content='initial-scale=1.0, user-scalable=no' />
         	";
         }
-        
-        $_headerJS = "
-            $_mobile_meta
-            <script type='text/javascript' src='http://maps.google.com/maps/api/js?sensor=".(($this->mobile==true)?"true":"false")."'></script>
-        ";
-		
-		if($this->marker_clusterer){
-			$_headerJS .= "
-				<script type='text/javascript' src='".$this->marker_clusterer_location."' ></script>
-			";
+		if(!empty($this->_elevation_polylines)){
+			$_headerJS .= "<script type='text/javascript' src='http://www.google.com/jsapi'></script>";
 		}
-        
-        if($this->local_search)
-        {
-            //TODO: Load Local Search API V3 when available
-        }   
-        
+        $_headerJS .= "<script type='text/javascript' src='http://maps.google.com/maps/api/js?sensor=".(($this->mobile==true)?"true":"false")."'></script>";
+		if($this->marker_clusterer){
+			$_headerJS .= "<script type='text/javascript' src='".$this->marker_clusterer_location."' ></script>";
+		}        
+        if($this->local_search){/*TODO: Load Local Search API V3 when available*/}   
         return $_headerJS;
     }    
     
-   /**                                                                                                                          
-    * prints onLoad() without having to manipulate body tag.                                                                     
-    * call this after the print map like so...                                                                             
-    *      $map->printMap();                                                                                                     
-    *      $map->printOnLoad();                                                                                                  
-    */                                                                                                                           
+   /**
+    * prints onLoad() without having to manipulate body tag.
+	* call this after the print map like so...    
+	*      $map->printMap();    
+	*      $map->printOnLoad();    
+	*/
     function printOnLoad() {
         echo $this->getOnLoad();
     }
@@ -1579,7 +1589,15 @@ class GoogleMapAPI {
 		if(!empty($this->_polylines)){
 			$_script .= "
 				var polylines$_key = [];
+				var polylineCoords$_key = [];
 			";
+			if(!empty($this->_elevation_polylines)){
+				$_script .= "
+					var elevationPolylines$_key = [];
+					// Load the Visualization API and the piechart package.
+  					google.load('visualization', '1', {packages: ['columnchart']});
+				";
+			}
 		}
 		//Overlays
 		if(!empty($this->_overlays)){
@@ -1677,8 +1695,8 @@ class GoogleMapAPI {
         $_script .= "
             map$_key = new google.maps.Map(mapObj$_key,mapOptions$_key);
         ";
-        
-        if($this->_directions_header!= '')
+		
+		if($this->_directions_header!= '')
         $_script .= $this->_directions_header;
         
         //TODO:add support for Google Earth Overlay once integrated with V3
@@ -1813,6 +1831,8 @@ class GoogleMapAPI {
 		 	$_script .= $this->getCreateMarkerJS();
 		 if(!empty($this->_overlays))
 		 	$_script .= $this->getCreateOverlayJS();
+		 if(!empty($this->_elevation_polylines))
+		 	$_script .= $this->getCreateElevationJS();
 		 // Utility functions used to distinguish between tabbed and non-tabbed info windows
 		 $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
 		 $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
@@ -1859,7 +1879,7 @@ class GoogleMapAPI {
      */
     function getPolylineJS() {
         $_output = '';
-        foreach($this->_polylines as $polyline_key =>$_polyline) {
+        foreach($this->_polylines as $polyline_id =>$_polyline) {
         	$_coords_output = "";
         	foreach($_polyline["coords"] as $_coords){
 				if($_coords_output != ""){$_coords_output.=",";}
@@ -1868,15 +1888,38 @@ class GoogleMapAPI {
         		";
         	}
         	$_output .= "
-        	   var PolylineCoordinates$polyline_key = [".$_coords_output."];    	
-			   polylines".$this->map_id."[$polyline_key] = new google.maps.Polyline({
-				  path: PolylineCoordinates$polyline_key
+        	   polylineCoords".$this->map_id."[$polyline_id] = [".$_coords_output."];    	
+			   polylines".$this->map_id."[$polyline_id] = new google.maps.Polyline({
+				  path: polylineCoords".$this->map_id."[$polyline_id]
 				  ".(($_polyline['color']!="")?", strokeColor: '".$_polyline['color']."'":"")."
 				  ".(($_polyline['opacity']!=0)?", strokeOpacity: ".$_polyline['opacity']."":"")."
 				  ".(($_polyline['weight']!=0)?", strokeWeight: ".$_polyline['weight']."":"")."
 			  });			
-			  polylines".$this->map_id."[$polyline_key].setMap(map".$this->map_id.");
+			  polylines".$this->map_id."[$polyline_id].setMap(map".$this->map_id.");
         	";
+			
+			//Elevation profiles
+			if(!empty($this->_elevation_polylines) && isset($this->_elevation_polylines[$polyline_id])){
+				$elevation_dom_id=$this->_elevation_polylines[$polyline_id]["dom_id"];
+				$width = $this->_elevation_polylines[$polyline_id]["width"];
+				$height = $this->_elevation_polylines[$polyline_id]["height"];
+				$samples = $this->_elevation_polylines[$polyline_id]["samples"];
+				$focus_color = $this->_elevation_polylines[$polyline_id]["focus_color"];
+				$_output .= "
+					elevationPolylines".$this->map_id."[$polyline_id] = {
+						'selector':'$elevation_dom_id',
+						'chart': new google.visualization.ColumnChart(document.getElementById('$elevation_dom_id')),
+						'service': new google.maps.ElevationService(),
+						'width':$width,
+						'height':$height,
+						'focusColor':'$focus_color'
+					};
+					elevationPolylines".$this->map_id."[$polyline_id]['service'].getElevationAlongPath({
+						path: polylineCoords".$this->map_id."[$polyline_id],
+						samples: $samples
+					}, function(results,status){plotElevation(results,status, elevationPolylines".$this->map_id."[$polyline_id]);});
+				";
+			}
 		}
         return $_output;
     }
@@ -1984,6 +2027,33 @@ class GoogleMapAPI {
 		 ";		 
 		 return $_output;
 	 }
+	 
+	 /**
+	  * print helper function to draw elevation results as a chart
+	  */
+	  function getCreateElevationJS(){
+		  $_output = "
+		  	 function plotElevation(results, status, elevation_polyline) {
+				elevations = results;
+				var data = new google.visualization.DataTable();
+				data.addColumn('string', 'Sample');
+				data.addColumn('number', 'Elevation');
+				for (var i = 0; i < results.length; i++) {
+				  data.addRow(['', elevations[i].elevation]);
+				}			
+				document.getElementById(elevation_polyline.selector).style.display = 'block';
+				elevation_polyline.chart.draw(data, {
+				  width: elevation_polyline.width,
+				  height: elevation_polyline.height,
+				  legend: 'none',
+				  titleY: 'Elevation (m)',
+				  focusBorderColor: elevation_polyline.focusColor
+				});
+			  }
+		  ";
+		  return $_output;
+	  }
+	  
 
     /**
      * print map (put at location map will appear)
