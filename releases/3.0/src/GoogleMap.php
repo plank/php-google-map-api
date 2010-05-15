@@ -150,6 +150,13 @@ class GoogleMapAPI {
      * @var bool
      */
     var $type_controls = true;
+	
+	/**
+	 * sets default option for type controls(DEFAULT, HORIZONTAL_BAR, DROPDOWN_MENU)
+	 *
+	 * @var string
+	 */
+	 var $type_controls_style = "DEFAULT";
 
     /**
      * default map type google.maps.MapTypeId.(ROADMAP, SATELLITE, HYBRID, TERRAIN)
@@ -600,7 +607,7 @@ class GoogleMapAPI {
      */
     function disableMapControls() {
         $this->map_controls = false;
-    }    
+    } 
     
     /**
      * sets the map control size (large/small)
@@ -770,7 +777,24 @@ class GoogleMapAPI {
     function disableTypeControls() {
         $this->type_controls = false;
     }
-
+	
+	/**
+	 * sets map control style
+	 */
+	function setTypeControlsStyle($type){
+		switch($type){
+			case "dropdown":
+				$this->type_controls_style = "DROPDOWN_MENU";
+				break;
+			case "horizontal":
+				$this->type_controls_style = "HORIZONTAL_BAR";
+				break;
+			default:
+				$this->type_controls_style = "DEFAULT";
+				break;
+		}
+	}
+	
     /**
      * set default map type (map/satellite/hybrid)
      *
@@ -792,8 +816,8 @@ class GoogleMapAPI {
                 $this->map_type = 'ROADMAP';
                 break;
         }       
-    }    
-    
+    }	   
+	    
     /**
      * enables onload
      *
@@ -1528,28 +1552,35 @@ class GoogleMapAPI {
         $_output .= " * Original Copyright 2005-2006 New Digital Group\n";
         $_output .= " * Originial Link http://www.phpinsider.com/php/code/GoogleMapAPI/\n";
         $_output .= " *************************************************/\n";
-		$_script .= "
-            var points$_key  = [];
-			var markers$_key  = [];
-			var counter$_key  = 0;
-        ";
+		
+		if(!empty($this->_markers)){
+			$_script .= "
+				var markers$_key  = [];
+			";
+			if($this->sidebar) {        
+				$_script .= "
+					var sidebar_html$_key  = '';
+					var marker_html$_key  = [];
+				";
+			}
+		}
 		if($this->marker_clusterer){
 			$_script .= "
 			  var markerClusterer$_key = null;
 			";
-		}
-        if($this->sidebar) {        
-            $_script .= "
-                var sidebar_html$_key  = '';
-                var marker_html$_key  = [];
-            ";
-        }
+		}        
         if($this->directions) {        
             $_script .= "
                 var to_htmls$_key  = [];
                 var from_htmls$_key  = [];
             ";
         }
+		//Polylines
+		if(!empty($this->_polylines)){
+			$_script .= "
+				var polylines$_key = [];
+			";
+		}
 		//Overlays
 		if(!empty($this->_overlays)){
 			$_script .= "
@@ -1608,7 +1639,9 @@ class GoogleMapAPI {
         $_script .= "
             var mapOptions$_key = {
                 zoom: ".$this->zoom.",
-                mapTypeId: google.maps.MapTypeId.".$this->map_type."
+                mapTypeId: google.maps.MapTypeId.".$this->map_type.",
+				mapTypeControl: ".($this->type_controls?"true":"false").",
+				mapTypeControlOptions: {style: google.maps.MapTypeControlStyle.".$this->type_controls_style."}
             }
         ";
         if(isset($this->center_lat) && isset($this->center_lon)) {
@@ -1836,13 +1869,13 @@ class GoogleMapAPI {
         	}
         	$_output .= "
         	   var PolylineCoordinates$polyline_key = [".$_coords_output."];    	
-			   var Polyline$polyline_key = new google.maps.Polyline({
+			   polylines".$this->map_id."[$polyline_key] = new google.maps.Polyline({
 				  path: PolylineCoordinates$polyline_key
 				  ".(($_polyline['color']!="")?", strokeColor: '".$_polyline['color']."'":"")."
 				  ".(($_polyline['opacity']!=0)?", strokeOpacity: ".$_polyline['opacity']."":"")."
 				  ".(($_polyline['weight']!=0)?", strokeWeight: ".$_polyline['weight']."":"")."
 			  });			
-			  Polyline$polyline_key.setMap(map".$this->map_id.");
+			  polylines".$this->map_id."[$polyline_key].setMap(map".$this->map_id.");
         	";
 		}
         return $_output;
