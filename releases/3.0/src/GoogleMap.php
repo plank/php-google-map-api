@@ -455,6 +455,18 @@ class GoogleMapAPI {
 	 * list of polylines that should have an elevation profile rendered.
 	 */
 	var $_elevation_polylines = array();
+	
+	/**
+	 * determines whether or not to display a marker on the "line" when 
+	 * mousing over the elevation chart
+	 */
+	var $elevation_markers = true;
+	
+	/**
+	 * determines whether or not to display an elevation chart 
+	 * for directions that are added to the map.  
+	 */
+	var $elevation_directions = false;
         
     /**
      * icon info array
@@ -513,6 +525,11 @@ class GoogleMapAPI {
      * @var string
      */
     var $_directions_header = '';
+	
+	/**
+	 * Class variable that will store information to render directions
+	 */
+	var $_directions = array();
     
     /**
      * Class variable to store whether or not to display JS functions in the header
@@ -728,42 +745,25 @@ class GoogleMapAPI {
      * @param string $dom_id DOM Element ID for directions container.
      * @param bool $add_markers Add a marker at start and dest locations.
      */
-    function addDirections($start_address='',$dest_address='',$dom_id='', $add_markers=true){
+    function addDirections($start_address='',$dest_address='',$dom_id='', $add_markers=true, $elevation_samples=256, $elevation_width="", $elevation_height="", $elevation_dom_id=''){
+		if($elevation_dom_id=="")
+			$elevation_dom_id = "elevation".$dom_id;
+		
         if($start_address != '' && $dest_address != '' && $dom_id != ''){
-            $travelModeParams = array();
-            $directionsParams = "";         
-            if($this->walking_directions==TRUE)
-                $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.WALKING";
-            else if($this->biking_directions==TRUE)
-                $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.BICYCLING";
-            else
-                $directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.DRIVING";
-           
-            if($this->avoid_highways==TRUE)
-               $directionsParams .= ", \n avoidHighways: true";
-            if($this->avoid_tollways==TRUE)
-               $directionsParams .= ", \n avoidTolls: true";               
-            
-            $this->_directions_header = "
-                var directionDisplay = new google.maps.DirectionsRenderer();
-                var directionsService = new google.maps.DirectionsService();
-                directionDisplay.setMap(map".$this->map_id.");
-                directionDisplay.setPanel(document.getElementById('$dom_id'));
-                var request = {
-                    origin: '$start_address',
-                    destination: '$dest_address'
-                    $directionsParams
-                };
-                directionsService.route(request, function(response, status) {
-                    if (status == google.maps.DirectionsStatus.OK) {
-                       directionDisplay.setDirections(response);
-                    }
-                });
-             ";
-             if($add_markers==true){
-                $this->addMarkerByAddress($start_address,$start_address, $start_address);
-                $this->addMarkerByAddress($dest_address,$dest_address, $dest_address);
-             }    
+			$this->_directions[$dom_id] = array(
+				"dom_id"=>$dom_id,
+				"start"=>$start_address,
+				"dest"=>$dest_address,
+				"markers"=>true,
+				"elevation_samples"=>$elevation_samples,
+				"width"=>($elevation_width!=""?$elevation_width:str_replace("px","",$this->width)),
+				"height"=>($elevation_height!=""?$elevation_height:str_replace("px","",$this->height)/2),
+				"elevation_dom_id"=>$elevation_dom_id
+			);			
+			if($add_markers==true){
+				$this->addMarkerByAddress($start_address,$start_address, $start_address);
+				$this->addMarkerByAddress($dest_address,$dest_address, $dest_address);
+			} 
         }
     }
         
@@ -945,6 +945,34 @@ class GoogleMapAPI {
     function disableInfoWindow() {
         $this->info_window = false;
     }
+	
+	/**
+	 * enable elevation marker to be displayed
+	 */
+	 function enableElevationMarker(){
+		 $this->elevation_markers = true;
+	 }
+	 
+	 /**
+	 * disable elevation marker
+	 */
+	 function disableElevationMarker(){
+		 $this->elevation_markers = false;
+	 }
+	 
+	 /**
+	 * enable elevation to be displayed for directions
+	 */
+	 function enableElevationDirections(){
+		 $this->elevation_directions = true;
+	 }
+	 
+	 /**
+	 * disable elevation to be displayed for directions
+	 */
+	 function disableElevationDirections(){
+		 $this->elevation_directions = false;
+	 }
     
     /**
      * enable map marker clustering
@@ -1494,8 +1522,13 @@ class GoogleMapAPI {
         	   <meta name='viewport' content='initial-scale=1.0, user-scalable=no' />
         	";
         }
-		if(!empty($this->_elevation_polylines)){
+		if(!empty($this->_elevation_polylines)||(!empty($this->_directions)&&$this->elevation_directions)){
 			$_headerJS .= "<script type='text/javascript' src='http://www.google.com/jsapi'></script>";
+			$_headerJS .= "
+			<script type='text/javascript'>
+				// Load the Visualization API and the piechart package.
+				google.load('visualization', '1', {packages: ['columnchart']});
+			</script>";
 		}
         $_headerJS .= "<script type='text/javascript' src='http://maps.google.com/maps/api/js?sensor=".(($this->mobile==true)?"true":"false")."'></script>";
 		if($this->marker_clusterer){
@@ -1585,6 +1618,11 @@ class GoogleMapAPI {
                 var from_htmls$_key  = [];
             ";
         }
+		if(!empty($this->_directions)){
+			$_script .= "
+			    var directions$_key = [];
+			";
+		}
 		//Polylines
 		if(!empty($this->_polylines)){
 			$_script .= "
@@ -1594,10 +1632,14 @@ class GoogleMapAPI {
 			if(!empty($this->_elevation_polylines)){
 				$_script .= "
 					var elevationPolylines$_key = [];
-					// Load the Visualization API and the piechart package.
-  					google.load('visualization', '1', {packages: ['columnchart']});
 				";
 			}
+		}
+		//Elevation stuff
+		if(!empty($this->_elevation_polylines)||(!empty($this->_directions)&&$this->elevation_directions)){
+			$_script .= "
+				var elevationCharts$_key = [];				
+			";
 		}
 		//Overlays
 		if(!empty($this->_overlays)){
@@ -1696,9 +1738,10 @@ class GoogleMapAPI {
             map$_key = new google.maps.Map(mapObj$_key,mapOptions$_key);
         ";
 		
-		if($this->_directions_header!= '')
-        $_script .= $this->_directions_header;
-        
+		if(!empty($this->_directions)){
+			$_script .= $this->getAddDirectionsJS();
+		}
+		
         //TODO:add support for Google Earth Overlay once integrated with V3
         //$_output .= "map.addMapType(G_SATELLITE_3D_MAP);\n";
         
@@ -1831,8 +1874,8 @@ class GoogleMapAPI {
 		 	$_script .= $this->getCreateMarkerJS();
 		 if(!empty($this->_overlays))
 		 	$_script .= $this->getCreateOverlayJS();
-		 if(!empty($this->_elevation_polylines))
-		 	$_script .= $this->getCreateElevationJS();
+		 if(!empty($this->_elevation_polylines)||(!empty($this->_directions)&&$this->elevation_directions))
+		 	$_script .= $this->getPlotElevationJS();
 		 // Utility functions used to distinguish between tabbed and non-tabbed info windows
 		 $_script .= 'function isArray(a) {return isObject(a) && a.constructor == Array;}' . "\n";
 		 $_script .= 'function isObject(a) {return (a && typeof a == \'object\') || isFunction(a);}' . "\n";
@@ -1912,17 +1955,78 @@ class GoogleMapAPI {
 						'service': new google.maps.ElevationService(),
 						'width':$width,
 						'height':$height,
-						'focusColor':'$focus_color'
+						'focusColor':'$focus_color',
+						'marker':null
 					};
 					elevationPolylines".$this->map_id."[$polyline_id]['service'].getElevationAlongPath({
 						path: polylineCoords".$this->map_id."[$polyline_id],
 						samples: $samples
-					}, function(results,status){plotElevation(results,status, elevationPolylines".$this->map_id."[$polyline_id]);});
+					}, function(results,status){plotElevation(results,status, elevationPolylines".$this->map_id."[$polyline_id], map".$this->map_id.", elevationCharts".$this->map_id.");});
 				";
 			}
 		}
         return $_output;
     }
+	
+	/**
+	 * function to render proper calls for directions
+	 */
+	 function getAddDirectionsJS(){
+		$_output = ""; 
+		 
+		foreach($this->_directions as $directions){
+			$dom_id = $directions["dom_id"];			
+			$travelModeParams = array();
+			$directionsParams = "";         
+			if($this->walking_directions==TRUE)
+				$directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.WALKING";
+			else if($this->biking_directions==TRUE)
+				$directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.BICYCLING";
+			else
+				$directionsParams .= ", \n travelMode:google.maps.DirectionsTravelMode.DRIVING";
+		   
+			if($this->avoid_highways==TRUE)
+			   $directionsParams .= ", \n avoidHighways: true";
+			if($this->avoid_tollways==TRUE)
+			   $directionsParams .= ", \n avoidTolls: true";			
+			
+			$_output .= "
+			    directions".$this->map_id."['$dom_id'] = {
+					displayRenderer:new google.maps.DirectionsRenderer(),
+					directionService:new google.maps.DirectionsService(),
+					request:{
+						origin: '".$directions["start"]."',
+						destination: '".$directions["dest"]."'
+						$directionsParams
+					}
+					".(($this->elevation_directions)?",		
+					   selector: '".$directions["elevation_dom_id"]."',
+					   chart: new google.visualization.ColumnChart(document.getElementById('".$directions["elevation_dom_id"]."')),
+					   service: new google.maps.ElevationService(),
+					   width:".$directions["width"].",
+					   height:".$directions["height"].",
+					   focusColor:'#00FF00',
+					   marker:null
+				   ":"")."
+				};
+				directions".$this->map_id."['$dom_id'].displayRenderer.setMap(map".$this->map_id.");
+				directions".$this->map_id."['$dom_id'].displayRenderer.setPanel(document.getElementById('$dom_id'));
+				directions".$this->map_id."['$dom_id'].directionService.route(directions".$this->map_id."['$dom_id'].request, function(response, status) {
+					if (status == google.maps.DirectionsStatus.OK) {
+					   directions".$this->map_id."['$dom_id'].displayRenderer.setDirections(response);
+					   ".(($this->elevation_directions)?"
+						   directions".$this->map_id."['$dom_id'].service.getElevationAlongPath({
+							   path: response.routes[0].overview_path,
+							   samples: ".$directions["elevation_samples"]."
+						   }, function(results,status){plotElevation(results,status, directions".$this->map_id."['$dom_id'], map".$this->map_id.", elevationCharts".$this->map_id.");});
+					   ":"")."
+					}
+				});
+			 ";
+		 }
+		 
+		 return $_output;
+	 }
 	
 	/**
 	 * function to get overlay creation JS.
@@ -2031,29 +2135,64 @@ class GoogleMapAPI {
 	 /**
 	  * print helper function to draw elevation results as a chart
 	  */
-	  function getCreateElevationJS(){
-		  $_output = "
-		  	 function plotElevation(results, status, elevation_polyline) {
-				elevations = results;
-				var data = new google.visualization.DataTable();
-				data.addColumn('string', 'Sample');
-				data.addColumn('number', 'Elevation');
-				for (var i = 0; i < results.length; i++) {
-				  data.addRow(['', elevations[i].elevation]);
-				}			
-				document.getElementById(elevation_polyline.selector).style.display = 'block';
-				elevation_polyline.chart.draw(data, {
-				  width: elevation_polyline.width,
-				  height: elevation_polyline.height,
+	function getPlotElevationJS(){
+		$_output = "
+			function plotElevation(results, status, elevation_data, map, charts_array) {
+				charts_array[elevation_data.selector] = {
+					results:results,
+					data:new google.visualization.DataTable()
+				};
+				charts_array[elevation_data.selector].data.addColumn('string', 'Sample');
+				charts_array[elevation_data.selector].data.addColumn('number', 'Elevation');
+				for (var i = 0; i < charts_array[elevation_data.selector].results.length; i++) {
+				  charts_array[elevation_data.selector].data.addRow(['', charts_array[elevation_data.selector].results[i].elevation]);
+				}
+				document.getElementById(elevation_data.selector).style.display = 'block';
+				elevation_data.chart.draw(charts_array[elevation_data.selector].data, {
+				  width: elevation_data.width,
+				  height: elevation_data.height,
 				  legend: 'none',
 				  titleY: 'Elevation (m)',
-				  focusBorderColor: elevation_polyline.focusColor
+				  focusBorderColor: elevation_data.focusColor
 				});
+		";
+		if($this->elevation_markers){
+			$_output .= $this->getElevationMarkerJS();			
+		}
+		$_output .= "}";
+		return $_output;
+	}	  
+	
+	/**
+	 * create JS that is inside of JS plot elevation function
+	 */
+	 function getElevationMarkerJS(){
+		 $_output = "
+			google.visualization.events.addListener(elevation_data.chart, 'onmouseover', function(e) {
+				if(elevation_data.marker==null){
+					elevation_data.marker = new google.maps.Marker({
+					  position: charts_array[elevation_data.selector].results[e.row].location,
+					  map: map,
+					  icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+					});
+				}else{
+					elevation_data.marker.setPosition(charts_array[elevation_data.selector].results[e.row].location);
+				}
+				map.setCenter(charts_array[elevation_data.selector].results[e.row].location);
+			});
+			document.getElementById(elevation_data.selector).onmouseout = function(){
+				elevation_data.marker = clearElevationMarker(elevation_data.marker);
+			};
+			function clearElevationMarker(marker){
+			  if(marker!=null){
+				  marker.setMap(null);
+				  return null;
 			  }
-		  ";
-		  return $_output;
-	  }
-	  
+			}
+		";
+		return $_output;
+	 }
+	 
 
     /**
      * print map (put at location map will appear)
