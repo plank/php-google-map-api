@@ -347,6 +347,11 @@ class GoogleMapAPI {
      * @var bool
      */
     var $biking_overlay = false;   
+	
+	/**
+	 * determines whether or not to display street view controls
+	 */
+	var $street_view_controls = false;
     
     /**
      * what server geocode lookups come from
@@ -915,6 +920,20 @@ class GoogleMapAPI {
      */
     function disableBikingOverlay() {
         $this->biking_overlay= false;
+    }
+	
+	/**
+     * enable biking overlay 
+     */
+    function enableStreetViewControls() {
+        $this->street_view_controls= true;
+    }
+    
+    /**
+     * disable biking overlay (default)
+     */
+    function disableStreetViewControls() {
+        $this->street_view_controls= false;
     }
     
     /**
@@ -1713,6 +1732,13 @@ class GoogleMapAPI {
                 );
             ";
         }   
+		
+		if($this->street_view_controls){
+			$_script .= "
+				mapOptions".$_key.".streetViewControl= true;
+
+			";
+		}
         /*
          *TODO:Update with local search bar once implemented in V3 api 
 		$strMapOptions = "";
