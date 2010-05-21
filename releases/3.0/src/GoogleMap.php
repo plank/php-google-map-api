@@ -72,6 +72,12 @@ class GoogleMapAPI {
      * @var string
      */
     var $map_id = null;
+	
+	/**
+	 * determines whether or not to display the map and associated JS on the page
+	 * this is used if you just want to display a streetview with no map
+	 */
+	var $display_map = true;
 
     /**
      * sidebar <div> used along with this map.
@@ -352,6 +358,11 @@ class GoogleMapAPI {
 	 * determines whether or not to display street view controls
 	 */
 	var $street_view_controls = false;
+	
+	/**
+	 * ID of the container that will hold a street view if streetview controls = true.
+	 */
+	var $street_view_dom_id = "";
     
     /**
      * what server geocode lookups come from
@@ -560,6 +571,20 @@ class GoogleMapAPI {
         $this->sidebar_id = 'sidebar_' . $map_id;
         $this->app_id = $app_id;
     }
+	
+	/**
+	 * function to enable map display
+	 */
+	function enableMapDisplay(){
+		$this->display_map = true;
+	}
+	
+	/**
+	 * function to disable map display (used to display street view only)
+	 */
+	function disableMapDisplay(){
+		$this->display_map = true;
+	}
     
     /**
      * sets the PEAR::DB dsn
@@ -935,6 +960,14 @@ class GoogleMapAPI {
     function disableStreetViewControls() {
         $this->street_view_controls= false;
     }
+	
+	/**
+	 * attach a dom id object as a streetview container to the map
+	 * NOTE: Only one container can be attached to a map.
+	 **/
+	function attachStreetViewContainer($dom_id){
+		$this->street_view_dom_id = $dom_id;
+	}
     
     /**
      * enable Google Adsense admanager on Map (not supported in V3 API)
@@ -1614,6 +1647,16 @@ class GoogleMapAPI {
         $_output .= " * Original Copyright 2005-2006 New Digital Group\n";
         $_output .= " * Originial Link http://www.phpinsider.com/php/code/GoogleMapAPI/\n";
         $_output .= " *************************************************/\n";
+		if($this->street_view_dom_id!=""){
+			$_script .= "
+				var panorama".$this->street_view_dom_id."$_key = '';
+			";
+			if(!empty($this->_markers)){
+				$_script .= "
+					var panorama".$this->street_view_dom_id."markers$_key = [];
+				";
+			}
+		}
 		
 		if(!empty($this->_markers)){
 			$_script .= "
@@ -1715,30 +1758,6 @@ class GoogleMapAPI {
             //$_output .= 'if (GBrowserIsCompatible()) {' . "\n";
         }
         
-        $_script .= "
-            var mapOptions$_key = {
-                zoom: ".$this->zoom.",
-                mapTypeId: google.maps.MapTypeId.".$this->map_type.",
-				mapTypeControl: ".($this->type_controls?"true":"false").",
-				mapTypeControlOptions: {style: google.maps.MapTypeControlStyle.".$this->type_controls_style."}
-            }
-        ";
-        if(isset($this->center_lat) && isset($this->center_lon)) {
-            // Special care for decimal point in lon and lat, would get lost if "wrong" locale is set; applies to (s)printf only
-            $_script .= "
-                mapOptions".$_key.".center = new google.maps.LatLng(
-                    ".number_format($this->center_lat, 6, ".", "").",
-                    ".number_format($this->center_lon, 6, ".", "")."
-                );
-            ";
-        }   
-		
-		if($this->street_view_controls){
-			$_script .= "
-				mapOptions".$_key.".streetViewControl= true;
-
-			";
-		}
         /*
          *TODO:Update with local search bar once implemented in V3 api 
 		$strMapOptions = "";
@@ -1757,107 +1776,162 @@ class GoogleMapAPI {
 			$strMapOptions .= ", mapOptions";
 		}
         */
-
-        $_script .= sprintf('var mapObj%s = document.getElementById("%s");', $_key, $this->map_id) . "\n";
-        $_script .= "if (mapObj$_key != 'undefined' && mapObj$_key != null) {\n";
-        $_script .= "
-            map$_key = new google.maps.Map(mapObj$_key,mapOptions$_key);
-        ";
 		
-		if(!empty($this->_directions)){
-			$_script .= $this->getAddDirectionsJS();
-		}
-		
-        //TODO:add support for Google Earth Overlay once integrated with V3
-        //$_output .= "map.addMapType(G_SATELLITE_3D_MAP);\n";
-        
-        // zoom so that all markers are in the viewport
-        if($this->zoom_encompass && (count($this->_markers) > 1 || count($this->_polylines) >= 1 || count($this->_overlays) >= 1)) {
-            // increase bounds by fudge factor to keep
-            // markers away from the edges
-            $_len_lon = $this->_max_lon - $this->_min_lon;
-            $_len_lat = $this->_max_lat - $this->_min_lat;
-            $this->_min_lon -= $_len_lon * $this->bounds_fudge;
-            $this->_max_lon += $_len_lon * $this->bounds_fudge;
-            $this->_min_lat -= $_len_lat * $this->bounds_fudge;
-            $this->_max_lat += $_len_lat * $this->bounds_fudge;
-
-            $_script .= "var bds$_key = new google.maps.LatLngBounds(new google.maps.LatLng($this->_min_lat, $this->_min_lon), new google.maps.LatLng($this->_max_lat, $this->_max_lon));\n";
-            $_script .= 'map'.$_key.'.fitBounds(bds'.$_key.');' . "\n";
-        }
-        
-        /*
-         * TODO: Update controls to use new API v3 methods.(Not a priority, see below)
-         * default V3 functionality caters control display according to the 
-         * device that's accessing the page, as well as the specified width
-         * and height of the map itself.
-        if($this->map_controls) {
-          if($this->control_size == 'large')
-              $_output .= 'map.addControl(new GLargeMapControl(), new GControlPosition(G_ANCHOR_TOP_LEFT, new GSize(10,10)));' . "\n";
-          else
-              $_output .= 'map.addControl(new GSmallMapControl(), new GControlPosition(G_ANCHOR_TOP_RIGHT, new GSize(10,60)));' . "\n";
-        }
-        if($this->type_controls) {
-            $_output .= 'map.addControl(new GMapTypeControl(), new GControlPosition(G_ANCHOR_TOP_RIGHT, new GSize(10,10)));' . "\n";
-        }
-        
-        if($this->scale_control) {
-            if($this->control_size == 'large'){
-                $_output .= 'map.addControl(new GScaleControl(), new GControlPosition(G_ANCHOR_TOP_RIGHT, new GSize(35,190)));' . "\n";
-            }else {
-                $_output .= 'map.addControl(new GScaleControl(), new GControlPosition(G_ANCHOR_BOTTOM_RIGHT, new GSize(190,10)));' . "\n";
-            }
-        }
-        if($this->overview_control) {
-            $_output .= 'map.addControl(new GOverviewMapControl());' . "\n";
-        }
-        
-         * TODO: Update with ads_manager stuff once integrated into V3
-        if($this->ads_manager){
-            $_output .= 'var adsManager = new GAdsManager(map, "'.$this->ads_pub_id.'",{channel:"'.$this->ads_channel.'",maxAdsOnMap:"'.$this->ads_max.'"});
-       adsManager.enable();'."\n";
-        
-        }
-         * TODO: Update with local search once integrated into V3
-        if($this->local_search){
-            $_output .= "\n
-                map.enableGoogleBar();
-            ";
-        }
-        */
-		
-        if($this->traffic_overlay){
+		if($this->display_map){
+			$_script .= sprintf('var mapObj%s = document.getElementById("%s");', $_key, $this->map_id) . "\n";
+			$_script .= "if (mapObj$_key != 'undefined' && mapObj$_key != null) {\n";
+			
 			$_script .= "
-				var trafficLayer = new google.maps.TrafficLayer();
-				trafficLayer.setMap(map$_key);
-			";            
-        }
-		
-		if($this->biking_overlay){
+				var mapOptions$_key = {
+					zoom: ".$this->zoom.",
+					mapTypeId: google.maps.MapTypeId.".$this->map_type.",
+					mapTypeControl: ".($this->type_controls?"true":"false").",
+					mapTypeControlOptions: {style: google.maps.MapTypeControlStyle.".$this->type_controls_style."}
+				};
+			";
+			if(isset($this->center_lat) && isset($this->center_lon)) {
+				// Special care for decimal point in lon and lat, would get lost if "wrong" locale is set; applies to (s)printf only
+				$_script .= "
+					mapOptions".$_key.".center = new google.maps.LatLng(
+						".number_format($this->center_lat, 6, ".", "").",
+						".number_format($this->center_lon, 6, ".", "")."
+					);
+				";
+			}   
+			
+			if($this->street_view_controls){
+				$_script .= "
+					mapOptions".$_key.".streetViewControl= true;
+	
+				";
+			}
+			
 			$_script .= "
-				var bikingLayer = new google.maps.BicyclingLayer();
-				bikingLayer.setMap(map$_key);
-			";            
-        }
-		
-        $_script .= $this->getAddMarkersJS();
-        $_script .= $this->getPolylineJS();
-		$_script .= $this->getAddOverlayJS();
-		
-		if($this->_kml_overlays!==""){
-		  foreach($this->_kml_overlays as $_kml_key=>$_kml_file){
-		      $_script .= "
-		          kml_overlays$_key[$_kml_key]= new google.maps.KmlLayer('$_kml_file');
-		          kml_overlays$_key[$_kml_key].setMap(map$_key);
-		      ";
-		  }
-		  $_script .= "
-		      
-		  ";
-		}
+				map$_key = new google.maps.Map(mapObj$_key,mapOptions$_key);
+			";
+				
+			if($this->street_view_dom_id!=""){
+				$_script .= "
+					panorama".$this->street_view_dom_id."$_key = new  google.maps.StreetViewPanorama(document.getElementById('".$this->street_view_dom_id."'));
+					map$_key.setStreetView(panorama".$this->street_view_dom_id."$_key);
+				";
+				
+				if(!empty($this->_markers)){
+					
+					//Add markers to the street view
+					if($this->street_view_dom_id!=""){
+						$_script .= $this->getAddMarkersJS($this->map_id, $pano=true);
+					}
+					//set center to last marker
+					$last_id = count($this->_markers)-1;
+					
+					$_script .= "
+						panorama".$this->street_view_dom_id."$_key.setPosition(new google.maps.LatLng(
+							".$this->_markers[$last_id]["lat"].",
+							".$this->_markers[$last_id]["lon"]."
+						));
+						panorama".$this->street_view_dom_id."$_key.setVisible(true);
+					";
+				}
+			}
+			
+			if(!empty($this->_directions)){
+				$_script .= $this->getAddDirectionsJS();
+			}
+			
+			//TODO:add support for Google Earth Overlay once integrated with V3
+			//$_output .= "map.addMapType(G_SATELLITE_3D_MAP);\n";
+			
+			// zoom so that all markers are in the viewport
+			if($this->zoom_encompass && (count($this->_markers) > 1 || count($this->_polylines) >= 1 || count($this->_overlays) >= 1)) {
+				// increase bounds by fudge factor to keep
+				// markers away from the edges
+				$_len_lon = $this->_max_lon - $this->_min_lon;
+				$_len_lat = $this->_max_lat - $this->_min_lat;
+				$this->_min_lon -= $_len_lon * $this->bounds_fudge;
+				$this->_max_lon += $_len_lon * $this->bounds_fudge;
+				$this->_min_lat -= $_len_lat * $this->bounds_fudge;
+				$this->_max_lat += $_len_lat * $this->bounds_fudge;
+	
+				$_script .= "var bds$_key = new google.maps.LatLngBounds(new google.maps.LatLng($this->_min_lat, $this->_min_lon), new google.maps.LatLng($this->_max_lat, $this->_max_lon));\n";
+				$_script .= 'map'.$_key.'.fitBounds(bds'.$_key.');' . "\n";
+			}
+			
+			/*
+			 * TODO: Update controls to use new API v3 methods.(Not a priority, see below)
+			 * default V3 functionality caters control display according to the 
+			 * device that's accessing the page, as well as the specified width
+			 * and height of the map itself.
+			if($this->map_controls) {
+			  if($this->control_size == 'large')
+				  $_output .= 'map.addControl(new GLargeMapControl(), new GControlPosition(G_ANCHOR_TOP_LEFT, new GSize(10,10)));' . "\n";
+			  else
+				  $_output .= 'map.addControl(new GSmallMapControl(), new GControlPosition(G_ANCHOR_TOP_RIGHT, new GSize(10,60)));' . "\n";
+			}
+			if($this->type_controls) {
+				$_output .= 'map.addControl(new GMapTypeControl(), new GControlPosition(G_ANCHOR_TOP_RIGHT, new GSize(10,10)));' . "\n";
+			}
+			
+			if($this->scale_control) {
+				if($this->control_size == 'large'){
+					$_output .= 'map.addControl(new GScaleControl(), new GControlPosition(G_ANCHOR_TOP_RIGHT, new GSize(35,190)));' . "\n";
+				}else {
+					$_output .= 'map.addControl(new GScaleControl(), new GControlPosition(G_ANCHOR_BOTTOM_RIGHT, new GSize(190,10)));' . "\n";
+				}
+			}
+			if($this->overview_control) {
+				$_output .= 'map.addControl(new GOverviewMapControl());' . "\n";
+			}
+			
+			 * TODO: Update with ads_manager stuff once integrated into V3
+			if($this->ads_manager){
+				$_output .= 'var adsManager = new GAdsManager(map, "'.$this->ads_pub_id.'",{channel:"'.$this->ads_channel.'",maxAdsOnMap:"'.$this->ads_max.'"});
+		   adsManager.enable();'."\n";
+			
+			}
+			 * TODO: Update with local search once integrated into V3
+			if($this->local_search){
+				$_output .= "\n
+					map.enableGoogleBar();
+				";
+			}
+			*/
+			
+			if($this->traffic_overlay){
+				$_script .= "
+					var trafficLayer = new google.maps.TrafficLayer();
+					trafficLayer.setMap(map$_key);
+				";            
+			}
+			
+			if($this->biking_overlay){
+				$_script .= "
+					var bikingLayer = new google.maps.BicyclingLayer();
+					bikingLayer.setMap(map$_key);
+				";            
+			}
+			
+			$_script .= $this->getAddMarkersJS();
+			
+			$_script .= $this->getPolylineJS();
+			$_script .= $this->getAddOverlayJS();
+			
+			if($this->_kml_overlays!==""){
+			  foreach($this->_kml_overlays as $_kml_key=>$_kml_file){
+				  $_script .= "
+					  kml_overlays$_key[$_kml_key]= new google.maps.KmlLayer('$_kml_file');
+					  kml_overlays$_key[$_kml_key].setMap(map$_key);
+				  ";
+			  }
+			  $_script .= "
+				  
+			  ";
+			}
 
-         //end JS if mapObj != "undefined" block
-        $_script .= '}' . "\n";        
+			 //end JS if mapObj != "undefined" block
+			$_script .= '}' . "\n";
+		
+		}//end if $this->display_map==true
        
         if(!empty($this->browser_alert)) {
             //TODO:Update with new browser catch SEE ABOVE
@@ -1913,26 +1987,37 @@ class GoogleMapAPI {
     /**
      * overridable function for generating js to add markers
      */
-    function getAddMarkersJS() {
+    function getAddMarkersJS($map_id = "", $pano= false) {
+		//defaults
+		if($map_id == ""){
+			$map_id = $this->map_id;
+		}
+		
+		if($pano==false){
+			$_prefix = "map";
+		}else{
+			$_prefix = "panorama".$this->street_view_dom_id;
+		}
         $_output = '';
         foreach($this->_markers as $_marker) {
             $iw_html = '"'.str_replace('"','\"','<div id="gmapmarker">' . str_replace(array("\n", "\r"), "", $_marker['html']) . '</div>').'"';
             $_output .= "var point = new google.maps.LatLng(".$_marker['lat'].",".$_marker['lon'].");\n";
-            $_output .= sprintf('markers%s.push(createMarker(map%s, point,"%s",%s, %s, %s, "%s", %s ));',
-                $this->map_id,
-				$this->map_id,
+            $_output .= sprintf('%s.push(createMarker(%s%s, point,"%s",%s, %s, %s, "%s", %s ));',
+				(($pano==true)?$_prefix:"")."markers".$map_id,
+				$_prefix,                
+				$map_id,
 				str_replace('"','\"',$_marker['title']),
 				str_replace('/','\/',$iw_html),
-				(isset($_marker["icon_key"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].image":"''",
-				(isset($_marker["icon_key"])&&isset($_marker["shadow_icon"]))?"icon".$this->map_id."['".$_marker["icon_key"]."'].shadow":"''",
+				(isset($_marker["icon_key"]))?"icon".$map_id."['".$_marker["icon_key"]."'].image":"''",
+				(isset($_marker["icon_key"])&&isset($_marker["shadow_icon"]))?"icon".$map_id."['".$_marker["icon_key"]."'].shadow":"''",
 				(($this->sidebar)?$this->sidebar_id:""),
 				((isset($_marker["openers"])&&count($_marker["openers"])>0)?json_encode($_marker["openers"]):"''")
-            ) . "\n";
+            ) . "\n";			
         }
         
-        if($this->marker_clusterer){
+        if($this->marker_clusterer && $pano==false){//only do marker clusterer for map, not streetview
         	$_output .= "
-        	   markerClusterer".$this->map_id." = new MarkerClusterer(map".$this->map_id.", markers".$this->map_id.", {
+        	   markerClusterer".$map_id." = new MarkerClusterer(".$_prefix.$map_id.", markers".$map_id.", {
 		          maxZoom: ".$this->marker_clusterer_options["maxZoom"].",
 		          gridSize: ".$this->marker_clusterer_options["gridSize"].",
 		          styles: ".$this->marker_clusterer_options["styles"]."
@@ -1944,7 +2029,7 @@ class GoogleMapAPI {
     }
 
     /**
-     * overridable function to generate polyline js
+     * overridable function to generate polyline js - for now can only be used on a map, not a streetview
      */
     function getPolylineJS() {
         $_output = '';
@@ -1995,7 +2080,7 @@ class GoogleMapAPI {
     }
 	
 	/**
-	 * function to render proper calls for directions
+	 * function to render proper calls for directions - for now can only be used on a map, not a streetview
 	 */
 	 function getAddDirectionsJS(){
 		$_output = ""; 
