@@ -2169,24 +2169,30 @@ class GoogleMapAPI {
 			    //create marker
 			    var new_marker = new google.maps.Marker(marker_options);
 			    if(html!=''){
+					".(($this->info_window)?"
 			        var infowindow = new google.maps.InfoWindow({content: html});
 			        google.maps.event.addListener(new_marker, '".$this->window_trigger."', function() {
 			          infowindow.open(map,new_marker);
-			        });                
-			        if(sidebar_id != ''){
-			            var sidebar = document.getElementById(sidebar_id);
-						if(sidebar!=null && sidebar!=undefined){
-							var newlink = document.createElement('a');
-							newlink.onclick=function(){infowindow.open(map,new_marker); return false};
-							newlink.innerHTML = title;
-							sidebar.appendChild(newlink);
-						}
-			        }
-			        if(openers != ''&&!isEmpty(openers)){
+			        });
+					if(openers != ''&&!isEmpty(openers)){
 			           for(var i in openers){
 			             var opener = document.getElementById(openers[i]);
 			             opener.on".$this->window_trigger." = function(){infowindow.open(map,new_marker); return false};
 			           }
+			        }
+					":"")."
+			        if(sidebar_id != ''){
+			            var sidebar = document.getElementById(sidebar_id);
+						if(sidebar!=null && sidebar!=undefined){
+							var newlink = document.createElement('a');
+							".(($this->info_window)?"
+			        		newlink.onclick=function(){infowindow.open(map,new_marker); return false};
+							":"
+							newlink.onclick=function(){map.setCenter(point); return false};
+							")."
+							newlink.innerHTML = title;
+							sidebar.appendChild(newlink);
+						}
 			        }
                 }
 			    return new_marker;  
