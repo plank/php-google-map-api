@@ -2000,9 +2000,9 @@ class GoogleMapAPI {
 		}
         $_output = '';
         foreach($this->_markers as $_marker) {
-            $iw_html = '"'.str_replace('"','\"','<div id="gmapmarker">' . str_replace(array("\n", "\r"), "", $_marker['html']) . '</div>').'"';
+            $iw_html = str_replace('"','\"',str_replace(array("\n", "\r"), "", $_marker['html']));
             $_output .= "var point = new google.maps.LatLng(".$_marker['lat'].",".$_marker['lon'].");\n";
-            $_output .= sprintf('%s.push(createMarker(%s%s, point,"%s",%s, %s, %s, "%s", %s ));',
+            $_output .= sprintf('%s.push(createMarker(%s%s, point,"%s","%s", %s, %s, "%s", %s ));',
 				(($pano==true)?$_prefix:"")."markers".$map_id,
 				$_prefix,                
 				$map_id,
@@ -2012,7 +2012,7 @@ class GoogleMapAPI {
 				(isset($_marker["icon_key"])&&isset($_marker["shadow_icon"]))?"icon".$map_id."['".$_marker["icon_key"]."'].shadow":"''",
 				(($this->sidebar)?$this->sidebar_id:""),
 				((isset($_marker["openers"])&&count($_marker["openers"])>0)?json_encode($_marker["openers"]):"''")
-            ) . "\n";			
+            ) . "\n";
         }
         
         if($this->marker_clusterer && $pano==false){//only do marker clusterer for map, not streetview
@@ -2183,7 +2183,7 @@ class GoogleMapAPI {
 					":"")."
 			        if(sidebar_id != ''){
 			            var sidebar = document.getElementById(sidebar_id);
-						if(sidebar!=null && sidebar!=undefined){
+						if(sidebar!=null && sidebar!=undefined && title!=null){
 							var newlink = document.createElement('a');
 							".(($this->info_window)?"
 			        		newlink.onclick=function(){infowindow.open(map,new_marker); return false};
