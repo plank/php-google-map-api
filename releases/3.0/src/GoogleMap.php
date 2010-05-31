@@ -2183,7 +2183,7 @@ class GoogleMapAPI {
 					":"")."
 			        if(sidebar_id != ''){
 			            var sidebar = document.getElementById(sidebar_id);
-						if(sidebar!=null && sidebar!=undefined && title!=null){
+						if(sidebar!=null && sidebar!=undefined && title!=null && title!=''){
 							var newlink = document.createElement('a');
 							".(($this->info_window)?"
 			        		newlink.onclick=function(){infowindow.open(map,new_marker); return false};
