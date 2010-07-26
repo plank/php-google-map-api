@@ -93,6 +93,17 @@ class GoogleMapAPI {
      */
     var $mobile=false;
     
+
+    /**
+     * If set, appends the lang= to the script url for localization.
+     *
+     * See http://code.google.com/apis/maps/documentation/javascript/basics.html#Localization
+     * for more info on Localization
+     *
+     * @var string
+     **/
+    var $locale=null;
+
     /**
      * DEPRECATED: Google now has geocoding service.  
      * NOTE: Note even sure if this still works
@@ -1582,7 +1593,13 @@ class GoogleMapAPI {
 				google.load('visualization', '1', {packages: ['columnchart']});
 			</script>";
 		}
-        $_headerJS .= "<script type='text/javascript' src='http://maps.google.com/maps/api/js?sensor=".(($this->mobile==true)?"true":"false")."'></script>";
+
+		$scriptUrl = 'http://maps.google.com/maps/api/js?sensor='.(($this->mobile==true)?"true":"false");
+		if($this->locale) {
+		    $scriptUrl .= '&language='.$this->locale;
+		}
+
+        $_headerJS .= "<script type='text/javascript' src='{$scriptUrl}'></script>";
 		if($this->marker_clusterer){
 			$_headerJS .= "<script type='text/javascript' src='".$this->marker_clusterer_location."' ></script>";
 		}        
