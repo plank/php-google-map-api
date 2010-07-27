@@ -29,7 +29,7 @@
  * maintains all original GNU software licenses.
  */
 /**
- * @link http://code.google.com/p/phpgooglemapapiv3/
+ * @link http://code.google.com/p/php-google-map-api/
  * @copyright 2010 Brad wedell
  * @author Brad Wedell
  * @package GoogleMapAPI (version 3)
