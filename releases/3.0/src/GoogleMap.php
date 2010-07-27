@@ -360,9 +360,12 @@ class GoogleMapAPI {
 		"gridSize"=>"null",
 		"styles"=>"null",
         "infoOnClick" => "false",
-        "infoOnClickZoom" => 7
+        "infoOnClickZoom" => 7,
+		//@see setClusterImageOptions() for details
+		"imagePath" => false,
+		"imageExtension" => false
 	 );
-    
+
     /**
      * determines if traffic overlay is displayed on map
      *
@@ -1072,8 +1075,25 @@ class GoogleMapAPI {
     	$this->marker_clusterer_options["styles"]=$styles;
     	$this->marker_clusterer_options["infoOnClick"]=$infoOnClick;
     	$this->marker_clusterer_options["infoOnClickZoom"]=$infoOnClickZoom;
+    }
 
-    }   
+    /**
+     * Used to setup the options for Cluster Image Path. Useful if you don't want to use the defaults
+     * which is set in the .js file to the google svn repo
+     * Not mixing this into setClusterOptions, since thats already getting out of hand.
+     *
+     * @param array $options will map to the markercluster.js options
+     *              valid options:
+     *              imagePath: should be full path to the image, including the prefix for the file name:
+     *                  example:http://google-maps-utility-library-v3.googlecode.com/svn/trunk/markerclusterer/images/m
+     *              imageExtension: default is png (in markerclusterer.js)
+     * @return void
+     **/
+    function setClusterImageOptions($options = array()) {
+        foreach ($options as $key => $value) {
+            $this->marker_clusterer_options[$key] = $options[$key];
+        }
+    }
 
     /**
      * Set clustering library file location
@@ -2048,13 +2068,20 @@ class GoogleMapAPI {
         }
         
         if($this->marker_clusterer && $pano==false){//only do marker clusterer for map, not streetview
+
+            //Need value quoted if included, else set to null
+            $imagePath = ($this->marker_clusterer_options['imagePath']) ? "'{$this->marker_clusterer_options['imagePath']}'" : "null" ;
+            $imageExtension = ($this->marker_clusterer_options['imageExtension']) ? "'{$this->marker_clusterer_options['imageExtension']}'" : "null" ;
+
         	$_output .= "
         	   markerClusterer".$map_id." = new MarkerClusterer(".$_prefix.$map_id.", markers".$map_id.", {
 		          maxZoom: ".$this->marker_clusterer_options["maxZoom"].",
 		          gridSize: ".$this->marker_clusterer_options["gridSize"].",
 		          styles: ".$this->marker_clusterer_options["styles"].",
 		          infoOnClick: ".$this->marker_clusterer_options["infoOnClick"].",
-		          infoOnClickZoom: ".$this->marker_clusterer_options["infoOnClickZoom"]."
+		          infoOnClickZoom: ".$this->marker_clusterer_options["infoOnClickZoom"].",
+		          imagePath: {$imagePath},
+		          imageExtension: {$imageExtension}
 		        });
 		        	
         	";
