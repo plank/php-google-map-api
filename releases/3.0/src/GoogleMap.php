@@ -344,11 +344,23 @@ class GoogleMapAPI {
 	 
 	 /**
 	 * set default marker clusterer options
+	 *
+	 * @doc infoOnClick functionality.
+	 * @requires our modified MarkerClusterer code. 
+	 * Compatible with zoomOnClick functionality of the MarkerClusterer. 
+	 * Added this functionality since we will have multiple events at the same address, so they were overlapping each other. 
+	 * This allow clustering to be turned on all the way to zoom level 0.
+	 * infoOnClick: Whether we show the InfoWindow Content for all the markers in the cluster on click.
+	 * infoOnClickZoom: The zoom threshold that infoOnClick will trigger if its turned on. 
+	 *      So, once you zoomed in @ this level or closer, it will overide zoomOnClick and 
+	 *      instead display an infowindow with the info from all the markers.
 	 */
 	 var $marker_clusterer_options = array(
 	 	"maxZoom"=>"null",
 		"gridSize"=>"null",
-		"styles"=>"null"
+		"styles"=>"null",
+        "infoOnClick" => "false",
+        "infoOnClickZoom" => 7
 	 );
     
     /**
@@ -1054,10 +1066,13 @@ class GoogleMapAPI {
     /**
      * set clustering options
      */
-    function setClusterOptions($zoom="null", $gridsize="null", $styles="null"){
+    function setClusterOptions($zoom="null", $gridsize="null", $styles="null", $infoOnClick="false", $infoOnClickZoom = 7){
     	$this->marker_clusterer_options["maxZoom"]=$zoom;
     	$this->marker_clusterer_options["gridSize"]=$gridsize;
     	$this->marker_clusterer_options["styles"]=$styles;
+    	$this->marker_clusterer_options["infoOnClick"]=$infoOnClick;
+    	$this->marker_clusterer_options["infoOnClickZoom"]=$infoOnClickZoom;
+
     }   
 
     /**
@@ -2037,7 +2052,9 @@ class GoogleMapAPI {
         	   markerClusterer".$map_id." = new MarkerClusterer(".$_prefix.$map_id.", markers".$map_id.", {
 		          maxZoom: ".$this->marker_clusterer_options["maxZoom"].",
 		          gridSize: ".$this->marker_clusterer_options["gridSize"].",
-		          styles: ".$this->marker_clusterer_options["styles"]."
+		          styles: ".$this->marker_clusterer_options["styles"].",
+		          infoOnClick: ".$this->marker_clusterer_options["infoOnClick"].",
+		          infoOnClickZoom: ".$this->marker_clusterer_options["infoOnClickZoom"]."
 		        });
 		        	
         	";
@@ -2180,7 +2197,8 @@ class GoogleMapAPI {
 			    var marker_options = {
 			        position: point,
 			        map: map,
-			        title: title};  
+			        title: title,
+			        content: html};
 			    if(icon!=''){marker_options.icon = icon;}
 			    if(icon_shadow!=''){marker_options.icon_shadow = icon_shadow;}
 			    //create marker
