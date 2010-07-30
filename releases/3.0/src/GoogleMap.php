@@ -357,7 +357,7 @@ class GoogleMapAPI {
 	 * set default marker clusterer options
 	 *
 	 * @doc infoOnClick functionality.
-	 * @requires our modified MarkerClusterer code. 
+	 * @requires our modified MarkerClusterer code. ( http://github.com/plank/MarkerClusterer/ )
 	 * Compatible with zoomOnClick functionality of the MarkerClusterer. 
 	 * Added this functionality since we will have multiple events at the same address, so they were overlapping each other. 
 	 * This allow clustering to be turned on all the way to zoom level 0.
@@ -1079,6 +1079,9 @@ class GoogleMapAPI {
     
     /**
      * set clustering options
+     *
+     * @param string $infoOnClick Whether MarkerClusterer should use infoOnClick functionality
+     * @param int $infoOnClickZoom What zoom level infoOnClick will take effect
      */
     function setClusterOptions($zoom="null", $gridsize="null", $styles="null", $infoOnClick="false", $infoOnClickZoom = 7){
     	$this->marker_clusterer_options["maxZoom"]=$zoom;
