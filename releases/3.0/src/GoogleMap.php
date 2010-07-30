@@ -51,6 +51,17 @@ CREATE TABLE GEOCODES (
 */
 
 /**
+ * REVISION NOTIFICATION
+ * NOTE: This is a modified version of the original listed above.  This version
+ * maintains all original GNU software licenses.
+ *
+ * Added infoOnClick functionality. To use that functionality, you will need a copy of MarkerClusterer that
+ * we modified to add that functionality. 
+ * See http://github.com/plank/MarkerClusterer/ for more info on the modified MarkerClusterer
+ * See http://code.google.com/p/php-google-map-api/ for more info on the PHP Google Map API Class. 
+ * @author Mitchell Amihod
+ */
+/**
  * PHP Google Maps API class
  * @package GoogleMapAPI
  * @version 3.0beta
